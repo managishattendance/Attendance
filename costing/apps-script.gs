@@ -16,14 +16,15 @@ function book_() {
   if (a) return a;
   var p = props_(), id = p.getProperty('SHEET_ID');
   if (id) return SpreadsheetApp.openById(id);
-  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  var lock = LockService.getScriptLock(), mine = !lock.hasLock();
+  if (mine) lock.waitLock(25000);
   try {
     id = p.getProperty('SHEET_ID');
     if (id) return SpreadsheetApp.openById(id);
     var s = SpreadsheetApp.create('Managish Costing');
     p.setProperty('SHEET_ID', s.getId());
     return s;
-  } finally { lock.releaseLock(); }
+  } finally { if (mine) lock.releaseLock(); }
 }
 /* Optional: run once from the editor to create the Sheet and give permissions */
 function setup() { sheet_(); MailApp.getRemainingDailyQuota(); Logger.log(book_().getUrl()); }
