@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1E3B26">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Managish Costing</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<style>
+:root{
+  --bg:#F4F6F1; --surface:#FFFFFF; --surface-2:#EEF2EA; --line:#DCE3D5;
+  --ink:#1F2A21; --ink-soft:#5B6A5D; --head:#1E3B26; --head-ink:#EEF4EA;
+  --accent:#2F6B3C; --accent-soft:#DDEDDF; --mustard:#C98A2C; --mustard-soft:#F6E7C8;
+  --good:#2E7D3E; --good-bg:#E1F2E3; --warn:#A86A00; --warn-bg:#FBEFD3; --bad:#B23A2A; --bad-bg:#F9E1DC;
+  --shadow:0 1px 2px rgba(30,59,38,.08),0 4px 14px rgba(30,59,38,.06);
+  --f-display:'Fraunces',Georgia,serif; --f-body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; --f-num:'JetBrains Mono',ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121713; --surface:#1A211C; --surface-2:#222B24; --line:#2E3A31;
+  --ink:#E4ECE3; --ink-soft:#9DAD9F; --head:#0F2416; --head-ink:#E4EFE1;
+  --accent:#7CC48A; --accent-soft:#24402B; --mustard:#E0A84C; --mustard-soft:#3D3120;
+  --good:#7FD08C; --good-bg:#1F3A25; --warn:#F0B755; --warn-bg:#3A2E16; --bad:#F08B79; --bad-bg:#40221D;
+  --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:20;background:var(--head);color:var(--head-ink);
+  padding-top:calc(14px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.brand small{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.7;font-weight:600}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:600;font-size:22px}
+.status{font-size:12px;padding:5px 10px;border-radius:99px;background:rgba(255,255,255,.1);white-space:nowrap}
+.status.saving{background:var(--mustard);color:#1E3B26}
+.status.err{background:var(--bad);color:#fff}
+.lockbtn{border:1px solid rgba(255,255,255,.35);background:transparent;color:var(--head-ink);border-radius:99px;padding:6px 12px;font-weight:600;cursor:pointer;font-size:13px}
+.lockbtn.on{background:var(--mustard);border-color:var(--mustard);color:#1E3B26}
+nav.tabs{display:flex;gap:2px;margin-top:12px;overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;background:transparent;color:var(--head-ink);opacity:.72;padding:10px 14px 12px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
+.tab[aria-selected="true"]{opacity:1;border-bottom-color:var(--mustard)}
+.tab .count{font-family:var(--f-num);font-size:11px;opacity:.8;margin-left:4px}
+main{padding-top:16px;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1500px;margin:0 auto}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.search{flex:1 1 240px;min-width:0;position:relative;display:block}
+.search input{width:100%;padding:11px 12px 11px 36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);outline:none}
+.search input:focus{border-color:var(--accent)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.5}
+.btn{border:1px solid var(--line);background:var(--surface);padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.small{padding:6px 10px;font-size:13px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible,.tab:focus-visible,.icon-btn:focus-visible,.pick:focus-visible,.lockbtn:focus-visible{outline:2px solid var(--mustard);outline-offset:2px}
+body.ro .eo{display:none!important}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);padding:6px 12px;border-radius:99px;font-size:13px;font-weight:500;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.note{background:var(--mustard-soft);border:1px solid var(--mustard);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.empty{text-align:center;padding:48px 16px;color:var(--ink-soft);background:var(--surface);border:1px dashed var(--line);border-radius:14px;line-height:1.5}
+.empty h3{color:var(--ink);margin:0 0 6px;font-family:var(--f-display)}
+.cat-h{font-family:var(--f-display);font-size:17px;margin:22px 2px 10px;display:flex;align-items:center;gap:10px;color:var(--accent)}
+.cat-h::after{content:"";flex:1;height:1px;background:var(--line)}
+.cat-h span{font-family:var(--f-body);font-size:12px;color:var(--ink-soft);font-weight:500}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+@media (max-width:520px){.items{grid-template-columns:1fr}}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;text-align:left;min-width:0}
+.item:hover:not(:disabled){border-color:var(--accent)}
+.item:disabled{cursor:default;opacity:1}
+.item .nm{font-weight:600;line-height:1.3}
+.prices{display:flex;flex-wrap:wrap;gap:6px}
+.pp{font-size:12.5px;padding:4px 8px;border-radius:8px;background:var(--surface-2);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.pp b{font-family:var(--f-num);font-weight:600}
+.pp.cur{background:var(--good-bg);color:var(--good);box-shadow:inset 0 0 0 1px var(--good)}
+.pp em{font-style:normal;opacity:.75}
+.flag{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--warn-bg);color:var(--warn);white-space:nowrap;align-self:flex-start}
+.flag.bad{background:var(--bad-bg);color:var(--bad)}
+.flag.good{background:var(--good-bg);color:var(--good)}
+.was{font-size:12px;color:var(--ink-soft)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:14px;box-shadow:var(--shadow);min-width:0}
+.card-h{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-h input.title{font-family:var(--f-display);font-weight:600;font-size:18px;border:1px solid transparent;background:transparent;border-radius:8px;padding:4px 6px;flex:1 1 200px;min-width:0}
+.card-h input.title:not(:disabled):hover,.card-h input.title:focus{border-color:var(--line);background:var(--bg);outline:none}
+.card-h .sub{font-size:12.5px;color:var(--ink-soft)}
+.tw{overflow-x:auto}
+table.ct{width:100%;border-collapse:collapse;font-size:13.5px;min-width:960px}
+.ct th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;padding:8px 6px;background:var(--surface-2);white-space:nowrap}
+.ct td{padding:5px 6px;border-top:1px solid var(--line);vertical-align:middle}
+.ct td.num{white-space:nowrap}
+.ct td.r,.ct th.r{text-align:right}
+.ct td.m{background:var(--surface-2);border-left:1px solid var(--line);text-align:center}
+.ct td.m .big{font-family:var(--f-num);font-weight:600;font-size:15px}
+.ct td.m .small{font-size:11.5px;color:var(--ink-soft)}
+.pick{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 9px;cursor:pointer;text-align:left;width:100%;min-width:150px;display:flex;justify-content:space-between;gap:6px;align-items:center}
+.pick:disabled{cursor:default;background:transparent;border-color:transparent;opacity:1}
+.pick .tag{font-size:10.5px;font-weight:700;color:var(--mustard);letter-spacing:.05em}
+.pick.empty-pick{color:var(--ink-soft);font-style:italic}
+.ct input[type=number],.ct select,.fld input,.fld select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 8px;outline:none}
+.ct input[type=number]{width:72px;text-align:right;font-family:var(--f-num)}
+.ct select{max-width:160px}
+.ct input:disabled,.ct select:disabled{background:transparent;border-color:transparent;opacity:1;color:var(--ink);-webkit-appearance:none;appearance:none}
+.ct input:focus,.ct select:focus,.fld input:focus,.fld select:focus{border-color:var(--accent)}
+.icon-btn{border:0;background:transparent;cursor:pointer;color:var(--ink-soft);padding:6px;border-radius:8px;font-size:16px;line-height:1}
+.icon-btn:hover{background:var(--bad-bg);color:var(--bad)}
+.pct{display:inline-block;padding:4px 10px;border-radius:99px;font-weight:700;font-family:var(--f-num)}
+.pct.good{background:var(--good-bg);color:var(--good)}.pct.warn{background:var(--warn-bg);color:var(--warn)}.pct.bad{background:var(--bad-bg);color:var(--bad)}
+.ct td.m input.price{width:90px;text-align:right;font-family:var(--f-num);font-weight:600}
+.scrim{position:fixed;inset:0;background:rgba(10,20,12,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center;padding-top:env(safe-area-inset-top,0px)}
+@media (min-width:700px){.scrim{align-items:center;padding:24px}}
+.modal{background:var(--surface);width:100%;max-width:640px;max-height:min(88vh,860px);border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}
+@media (min-width:700px){.modal{border-radius:16px}}
+.modal-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.modal-h h2{margin:0;font-family:var(--f-display);font-size:19px;flex:1}
+.modal-b{padding:14px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.modal-f{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.fld{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--ink-soft)}
+.fld input,.fld select{font-weight:400;color:var(--ink);padding:10px;font-size:15px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.suprow{display:grid;grid-template-columns:28px minmax(0,1.6fr) minmax(0,1fr) minmax(0,.9fr) 74px 34px;gap:6px;align-items:center}
+.suprow input,.suprow select{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px;outline:none;min-width:0}
+.suprow .hd{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600}
+.suprow input[type=radio]{width:20px;height:20px;accent-color:var(--accent)}
+.hist{font-size:12px;color:var(--ink-soft);grid-column:2/-1;margin-top:-2px}
+.plist{display:flex;flex-direction:column}
+.popt{border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;padding:11px 4px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.popt:hover{background:var(--surface-2)}
+.popt small{color:var(--ink-soft);font-family:var(--f-num);white-space:nowrap}
+.plabel{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mustard);font-weight:700;margin:10px 4px 2px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:60;font-size:14px;max-width:calc(100% - 32px)}
+.settings{display:flex;flex-direction:column;gap:14px;max-width:720px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.box h3{margin:0;font-family:var(--f-display);font-size:18px}
+.box p,.box ol{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.55}
+.box ol{padding-left:20px}
+.switch{display:flex;align-items:center;gap:10px;font-weight:600}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+textarea.code{width:100%;min-height:160px;font-family:var(--f-num);font-size:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:10px}
+#halt{position:fixed;inset:0;z-index:80;background:var(--head);color:var(--head-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:10px}
+#halt h2{font-family:var(--f-display);margin:0;font-size:26px}
+#halt p{margin:0;opacity:.8;max-width:420px;line-height:1.5}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}.suprow{grid-template-columns:24px 1fr 1fr}.suprow .w2{grid-column:2/-1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="ro">
+<header>
+  <div class="hrow">
+    <div class="brand"><small>Managish · Aljada &amp; Cloud Kitchen</small><h1>Costing</h1></div>
+    <span class="status" id="status">Connecting…</span>
+    <button class="lockbtn" id="lockBtn" type="button">🔒 View only</button>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="items" id="tab-items">Items<span class="count" id="c-items"></span></button>
+    <button class="tab" role="tab" data-tab="productions" id="tab-productions">Productions<span class="count" id="c-productions"></span></button>
+    <button class="tab" role="tab" data-tab="menu" id="tab-menu">Menu Costing<span class="count" id="c-menu"></span></button>
+    <button class="tab" role="tab" data-tab="settings" id="tab-settings">Settings</button>
+  </nav>
+</header>
+<main id="main"><div class="empty"><h3>Loading the costing…</h3>Supplier items, productions and menu dishes will appear here.</div></main>
+<div id="layer"></div>
+<div id="halt" hidden><h2 id="haltTitle">Paused</h2><p id="haltText"></p></div>
+
+<script>
+(()=>{
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=p=>p+Math.random().toString(36).slice(2,9);
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const ss={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
+const S={items:{},prods:{},dishes:{},settings:{targetPct:30,vat:true,vatRate:5},loaded:false,version:null,defaultPw:false,
+  tab:ls.get('mc-tab')||'productions',q:{items:'',productions:'',menu:''},cat:{items:'ALL',menu:'ALL'},
+  api:'',pw:ss.get('mc-pw')||'',edit:false};
+S.edit=!!S.pw;
+
+/* ---------- units & maths ---------- */
+const UNITS=['g','kg','ml','L','pcs'];
+const UF={g:['w',1],kg:['w',1000],ml:['w',1],l:['w',1000],L:['w',1000],ltr:['w',1000],pcs:['p',1],pc:['p',1]};
+function base(q,u){const f=UF[u]||UF[String(u).toLowerCase()]; if(!f||q==null||q==='') return null; const n=Number(q); if(!isFinite(n)) return null; return {dim:f[0],v:n*f[1]};}
+const isVol=u=>/^(ml|l|ltr)$/i.test(u||'');
+const perLabel=(dim,u)=>dim==='p'?'pc':(isVol(u)?'L':'kg');
+function fmtQty(q,u){if(q==null)return '—'; const f=UF[u]; if(!f) return q+' '+u;
+  if(f[0]==='p') return `${+(+q).toFixed(2)} pcs`; const v=q*f[1], vol=isVol(u);
+  return v>=1000? `${+(v/1000).toFixed(3)} ${vol?'L':'kg'}` : `${+v.toFixed(1)} ${vol?'ml':'g'}`;}
+const aed=v=>v==null||!isFinite(v)?'—':(Math.abs(v)<1&&v!==0? v.toFixed(3): v.toFixed(2));
+function itemCost(it){
+  if(!it) return {err:'missing'};
+  const s=it.suppliers&&it.current&&it.suppliers[it.current];
+  if(!s) return {err:'price'};
+  const b=base(s.qty,s.unit); if(!b||!b.v) return {err:'pack'};
+  return {c:Number(s.price)/b.v, dim:b.dim, unit:s.unit, sup:s};
+}
+let memo=null;
+function prodCost(p,stack){
+  if(!p) return {err:'missing'};
+  if(memo&&memo[p.id]) return memo[p.id];
+  stack=stack||new Set(); if(stack.has(p.id)) return {err:'loop'};
+  stack.add(p.id);
+  let total=0, issues=0;
+  for(const r of p.rows||[]){const rc=rowCost(r,stack); if(rc.err) issues++; else total+=rc.cost;}
+  stack.delete(p.id);
+  const y=base(p.yieldQty,p.yieldUnit);
+  const out={total,issues,dim:y?y.dim:'w',unit:p.yieldUnit,c:y&&y.v?total/y.v:null,err:y&&y.v?null:'yield'};
+  if(memo) memo[p.id]=out; return out;
+}
+function refCost(ref,stack){
+  if(S.prods[ref]){const pc=prodCost(S.prods[ref],stack); return pc.c==null?{err:pc.err||'yield'}:{c:pc.c,dim:pc.dim,unit:pc.unit,prod:true};}
+  return itemCost(S.items[ref]);
+}
+function rowCost(r,stack){
+  if(!r.ref) return {err:'ing'};
+  const rc=refCost(r.ref,stack); if(rc.err) return rc;
+  const b=base(r.qty,r.unit); if(!b) return {err:'qty'};
+  let c=rc.c;
+  if(b.dim!==rc.dim){const it=S.items[r.ref]; const pw=it&&Number(it.pieceWeight);
+    if(!pw) return {err:'unit'}; c=rc.dim==='p'? rc.c/pw : rc.c*pw;}
+  return {cost:b.v*c,unitCost:c,dim:b.dim,rc};
+}
+const ERR={missing:'Deleted ingredient',price:'No price',pack:'No pack size',qty:'Add qty',unit:'Unit mismatch',yield:'No batch yield',loop:'Uses itself',ing:'Pick ingredient'};
+const refName=ref=>S.prods[ref]?S.prods[ref].name:(S.items[ref]?S.items[ref].name:'(deleted)');
+function netPrice(p){const n=Number(p); if(!n) return null; return S.settings.vat? n/(1+Number(S.settings.vatRate||0)/100): n;}
+function pctClass(p){const t=Number(S.settings.targetPct)||30; return p<=t?'good':(p<=t+5?'warn':'bad');}
+function suggest(cost){const t=(Number(S.settings.targetPct)||30)/100; let v=cost/t; if(S.settings.vat) v*=1+Number(S.settings.vatRate||0)/100; return Math.ceil(v);}
+
+/* ---------- server (Google Sheet via Apps Script) ---------- */
+const COL={items:'items',prods:'productions',dishes:'dishes'};
+const KIND={items:'items',productions:'prods',dishes:'dishes'};
+const queue=new Map(); let flushT=null, flushing=false, retryT=null;
+function setStatus(t,cls){const el=$('#status'); el.textContent=t; el.className='status'+(cls?' '+cls:'');}
+async function api(method,body,query=''){
+  const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),45000);
+  try{
+    const r=await fetch(S.api+query,method==='GET'?{signal:ctl.signal,cache:'no-store'}:{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),signal:ctl.signal});
+    if(!r.ok) throw new Error('http '+r.status);
+    return await r.json();
+  } finally{clearTimeout(t);}
+}
+function save(kind,id,delay=700){
+  if(!S.edit){toast('Tap “View only” and enter the password to make changes.');return;}
+  const doc=S[kind][id]; const coll=COL[kind];
+  if(doc){const {id:_,...body}=doc; queue.set(coll+'/'+id,{collection:coll,id,doc:JSON.parse(JSON.stringify(body))});}
+  else queue.set(coll+'/'+id,{collection:coll,id,delete:true});
+  setStatus('Saving…','saving'); clearTimeout(flushT); flushT=setTimeout(flush,delay);
+}
+function saveSettings(){ if(!S.edit) return; queue.set('settings/main',{collection:'settings',id:'main',doc:{...S.settings}}); setStatus('Saving…','saving'); clearTimeout(flushT); flushT=setTimeout(flush,500); }
+async function flush(){
+  if(flushing||!queue.size) return; flushing=true; clearTimeout(retryT);
+  const writes=[...queue.values()]; const keys=[...queue.keys()];
+  try{
+    const res=await api('POST',{password:S.pw,op:'save',writes});
+    if(!res.ok){ if(res.error==='password'){lock(); toast('The password was changed on another device. Unlock again to keep editing.');} throw new Error(res.error||'fail'); }
+    keys.forEach((k,i)=>{ if(queue.get(k)===writes[i]) queue.delete(k); });
+    if(res.version!=null) S.version=res.version;
+    setStatus(queue.size?'Saving…':'All changes saved',queue.size?'saving':'');
+  }catch(e){
+    setStatus('Not saved yet','err'); retryT=setTimeout(flush,10000);
+  }finally{ flushing=false; if(queue.size&&!retryT) flushT=setTimeout(flush,300); }
+}
+window.addEventListener('beforeunload',e=>{ if(queue.size){ e.preventDefault(); e.returnValue=''; } });
+function applyData(d){
+  const pend=k=>queue.has(k);
+  for(const [coll,kind] of Object.entries(KIND)){
+    const src=d[coll]||{}; const next={};
+    for(const [id,body] of Object.entries(src)){ next[id]=pend(coll+'/'+id)&&S[kind][id]?S[kind][id]:{...body,id}; }
+    for(const id of Object.keys(S[kind])) if(pend(coll+'/'+id)&&S[kind][id]&&!next[id]) next[id]=S[kind][id];
+    for(const id of Object.keys(next)) if(pend(coll+'/'+id)&&!S[kind][id]) delete next[id];
+    S[kind]=next;
+  }
+  if(d.settings&&d.settings.main&&!pend('settings/main')) S.settings={...S.settings,...d.settings.main};
+}
+async function pull(force){
+  if(!S.api) return;
+  try{
+    const res=await api('GET',null,(S.api.includes('?')?'&':'?')+'since='+(force||S.version==null?'':S.version)+'&t='+Date.now());
+    S.defaultPw=!!res.defaultPassword||S.defaultPw&&res.unchanged;
+    if(!res.unchanged&&res.data){ applyData(res.data); S.version=res.version; scheduleRender(); }
+    if(!S.loaded){S.loaded=true; scheduleRender();}
+    if(!queue.size&&!flushing) setStatus('Up to date');
+  }catch(e){ if(!S.loaded){S.loaded=true; render();} setStatus('Offline','err'); }
+}
+setInterval(()=>{ if(document.visibilityState==='visible'&&!queue.size&&!flushing&&!editing()&&!$('#layer').firstChild) pull(); },30000);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&!queue.size) pull(); });
+
+/* ---------- edit lock ---------- */
+function setEdit(on){ S.edit=on; document.body.classList.toggle('ro',!on); const b=$('#lockBtn'); b.textContent=on?'🔓 Editing · Lock':'🔒 View only'; b.classList.toggle('on',on); }
+function lock(){ S.pw=''; ss.del('mc-pw'); setEdit(false); render(); }
+$('#lockBtn').onclick=()=>{
+  if(S.edit){ if(queue.size){flush();} lock(); toast('Locked. The costing is view only.'); return; }
+  if(!S.api){ S.tab='settings'; render(); toast('Connect the Google Sheet first (Settings).'); return; }
+  openModal(`<div class="modal-h"><h2>Unlock editing</h2><button class="icon-btn" data-x aria-label="Close">✕</button></div>
+   <form class="modal-b" id="pwf"><label class="fld">Edit password<input id="pw-in" type="password" autocomplete="current-password" inputmode="text"></label><p style="margin:0;color:var(--ink-soft);font-size:13px">Everyone can see the costing. Only people with the password can change it. It stays unlocked until you tap Lock or close the app.</p></form>
+   <div class="modal-f"><button class="btn" data-x>Cancel</button><button class="btn primary" id="pw-ok">Unlock</button></div>`,el=>{
+    el.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+    const go=async e=>{ e&&e.preventDefault(); const v=el.querySelector('#pw-in').value; if(!v) return; const ok=el.querySelector('#pw-ok'); ok.disabled=true; ok.textContent='Checking…';
+      try{ const r=await api('POST',{password:v,op:'check'}); if(r.ok){ S.pw=v; ss.set('mc-pw',v); setEdit(true); closeModal(); render(); toast('Editing unlocked'); } else { ok.disabled=false; ok.textContent='Unlock'; toast('Wrong password'); } }
+      catch(_){ ok.disabled=false; ok.textContent='Unlock'; toast('No connection. Try again.'); } };
+    el.querySelector('#pw-ok').onclick=go; el.querySelector('#pwf').onsubmit=go;
+  });
+};
+
+/* ---------- render ---------- */
+let renderQueued=false;
+function editing(){const a=document.activeElement; return a&&$('#main').contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)&&!a.closest('.search');}
+function scheduleRender(){ if(editing()||$('#layer').firstChild){renderQueued=true;return;} render(); }
+document.addEventListener('focusout',()=>setTimeout(()=>{if(renderQueued&&!editing()&&!$('#layer').firstChild){renderQueued=false;render();}},50));
+const D=()=>S.edit?'':' disabled';
+function counts(){
+  $('#c-items').textContent=Object.keys(S.items).length||'';
+  $('#c-productions').textContent=Object.keys(S.prods).length||'';
+  $('#c-menu').textContent=Object.keys(S.dishes).length||'';
+}
+function render(){
+  memo={}; counts();
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===S.tab));
+  const m=$('#main'); const sx=window.scrollY;
+  if(S.tab==='settings') m.innerHTML=renderSettings();
+  else if(!S.api) m.innerHTML=`<div class="empty"><h3>Not connected yet</h3>The costing is saved in a Google Sheet. Open <b>Settings</b> to connect it.</div>`;
+  else if(S.tab==='items') m.innerHTML=renderItems();
+  else if(S.tab==='productions') m.innerHTML=renderProds();
+  else m.innerHTML=renderMenu();
+  if(S.tab==='settings') mountSettings();
+  window.scrollTo(0,sx); memo=null;
+}
+const searchBox=(k,ph)=>`<label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="q-${k}" data-q="${k}" placeholder="${ph}" value="${esc(S.q[k])}" aria-label="${ph}"></label>`;
+const match=(q,...s)=>{q=(q||'').trim().toLowerCase(); return !q||s.join(' ').toLowerCase().includes(q);};
+const loadingBox=()=>`<div class="empty"><h3>Loading…</h3>If this takes long, check the internet connection.</div>`;
+const pwNote=()=>S.edit&&S.defaultPw?`<div class="note">The edit password is still <b>0000</b>. Change it in Settings so only the right people can edit.</div>`:'';
+function cap(s){return String(s).toLowerCase().replace(/(^|[\s&/])([a-z])/g,(m,a,b)=>a+b.toUpperCase());}
+function catsOf(){return [...new Set(Object.values(S.items).map(i=>i.category).filter(Boolean))].sort();}
+function usage(id){let n=0; for(const p of Object.values(S.prods)) if((p.rows||[]).some(r=>r.ref===id)) n++; for(const d of Object.values(S.dishes)) if((d.rows||[]).some(r=>r.ref===id)) n++; return n;}
+
+function renderItems(){
+  const cats=catsOf(); const q=S.q.items, cat=S.cat.items;
+  const list=Object.values(S.items).filter(i=>(cat==='ALL'||i.category===cat)&&match(q,i.name,i.category,Object.keys(i.suppliers||{}).join(' '))).sort((a,b)=>a.name.localeCompare(b.name));
+  let h=pwNote()+`<div class="toolbar">${searchBox('items','Search item or supplier')}<button class="btn primary eo" data-act="add-item">+ Add item</button></div>
+  <div class="chips">${['ALL',...cats].map(c=>`<button class="chip" data-cat="${esc(c)}" aria-pressed="${c===cat}">${c==='ALL'?'All categories':esc(cap(c))}</button>`).join('')}</div>`;
+  if(!Object.keys(S.items).length) return h+(S.loaded?`<div class="empty"><h3>No items yet</h3>Unlock editing, then add products with their supplier prices.</div>`:loadingBox());
+  if(!list.length) return h+`<div class="empty"><h3>No item matches “${esc(q)}”</h3></div>`;
+  const by={}; list.forEach(i=>(by[i.category||'OTHER']=by[i.category||'OTHER']||[]).push(i));
+  for(const c of Object.keys(by).sort()){
+    h+=`<h3 class="cat-h">${esc(cap(c))} <span>${by[c].length}</span></h3><div class="items">`;
+    for(const it of by[c]){
+      const sups=Object.entries(it.suppliers||{}).map(([n,s])=>{const b=base(s.qty,s.unit); const per=b&&b.v? s.price/b.v*(b.dim==='p'?1:1000):null;
+        const hist=s.history&&s.history.length>1? s.history[s.history.length-2]:null;
+        return `<span class="pp${n===it.current?' cur':''}">${n===it.current?'★ ':''}${esc(n)} <b>${aed(Number(s.price))}</b><em>/ ${fmtQty(s.qty,s.unit)}${per!=null&&!(b.dim==='w'&&b.v===1000)?' · '+aed(per)+'/'+perLabel(b.dim,s.unit):''}</em>${hist?`<em>${Number(s.price)>hist.price?'▲':'▼'} was ${aed(hist.price)}</em>`:''}</span>`;}).join('');
+      const used=usage(it.id);
+      h+=`<button class="item" data-act="edit-item" data-id="${esc(it.id)}"${D()}><span class="nm">${esc(it.name)}</span><span class="prices">${sups||'<span class="flag bad">No price yet</span>'}</span>${it.check?'<span class="flag">Check pack size</span>':''}${used?`<span class="was">Used in ${used} recipe${used>1?'s':''}</span>`:''}</button>`;
+    }
+    h+=`</div>`;
+  }
+  return h;
+}
+function priceCell(r){
+  const it=S.items[r.ref];
+  if(S.prods[r.ref]) return `<span class="flag good">Production</span>`;
+  if(!it) return '—';
+  const ent=Object.entries(it.suppliers||{});
+  if(!ent.length) return S.edit?`<button class="btn small" data-act="edit-item" data-id="${esc(r.ref)}">+ Add price</button>`:'<span class="flag bad">No price</span>';
+  const opts=ent.map(([n,s])=>{const b=base(s.qty,s.unit); return [n,s,b&&b.v?s.price/b.v:Infinity];}).sort((a,b)=>a[2]-b[2])
+    .map(([n,s])=>`<option value="${esc(n)}" ${n===it.current?'selected':''}>${aed(Number(s.price))} AED · ${fmtQty(s.qty,s.unit)}</option>`).join('');
+  return `<select data-act="cur" data-id="${esc(r.ref)}" aria-label="Price for ${esc(it.name)}"${D()}>${opts}</select>`;
+}
+function packCell(r){
+  if(S.prods[r.ref]){const p=S.prods[r.ref]; return p.yieldQty?`Batch ${fmtQty(p.yieldQty,p.yieldUnit)}`:'—';}
+  const ic=itemCost(S.items[r.ref]); return ic.sup? fmtQty(ic.sup.qty,ic.sup.unit):'—';
+}
+function unitCostTxt(r){const rc=r.ref?refCost(r.ref):null; if(!rc||rc.err) return '—'; return `${aed(rc.c*(rc.dim==='p'?1:1000))} / ${perLabel(rc.dim,rc.unit)}`;}
+function rowsHtml(kind,doc,mergedHtml){
+  const rows=doc.rows||[]; const n=rows.length+(S.edit?1:0); let h='';
+  rows.forEach((r,i)=>{
+    const rc=rowCost(r);
+    h+=`<tr>
+      <td><button class="pick${r.ref?'':' empty-pick'}" data-act="pick" data-kind="${kind}" data-id="${esc(doc.id)}" data-row="${r.id}"${D()}><span>${r.ref?esc(refName(r.ref)):'Choose ingredient'}</span>${S.prods[r.ref]?'<span class="tag">PROD</span>':''}</button></td>
+      <td><input type="number" inputmode="decimal" step="any" min="0" value="${r.qty??''}" data-act="qty" data-kind="${kind}" data-id="${esc(doc.id)}" data-row="${r.id}" aria-label="Quantity"${D()}></td>
+      <td><select data-act="unit" data-kind="${kind}" data-id="${esc(doc.id)}" data-row="${r.id}" aria-label="Unit"${D()}>${UNITS.map(u=>`<option ${u===r.unit?'selected':''}>${u}</option>`).join('')}</select></td>
+      ${kind==='prods'?`<td>${r.ref?priceCell(r):'—'}</td>`:''}<td class="num">${r.ref?packCell(r):'—'}</td>
+      <td class="num r">${unitCostTxt(r)}</td>
+      <td class="num r">${rc.err?`<span class="flag${rc.err==='price'||rc.err==='unit'?' bad':''}">${ERR[rc.err]}</span>`:aed(rc.cost)}</td>
+      <td>${S.edit?`<button class="icon-btn" data-act="del-row" data-kind="${kind}" data-id="${esc(doc.id)}" data-row="${r.id}" aria-label="Remove ingredient">✕</button>`:''}</td>
+      ${i===0?mergedHtml(n):''}
+    </tr>`;
+  });
+  if(S.edit) h+=`<tr><td colspan="${kind==='prods'?8:7}"><button class="btn small" data-act="add-row" data-kind="${kind}" data-id="${esc(doc.id)}">+ Add ingredient</button></td>${rows.length?'':mergedHtml(1)}</tr>`;
+  else if(!rows.length) h+=`<tr><td colspan="${kind==='prods'?8:7}" style="color:var(--ink-soft)">No ingredients yet</td>${mergedHtml(1)}</tr>`;
+  return h;
+}
+function usedBy(id){const n=usage(id); return n?`Used in ${n} recipe${n>1?'s':''}`:'';}
+function renderProds(){
+  const q=S.q.productions;
+  const list=Object.values(S.prods).filter(p=>match(q,p.name,...(p.rows||[]).map(r=>refName(r.ref)))).sort((a,b)=>(a.order??0)-(b.order??0));
+  let h=pwNote()+`<div class="toolbar">${searchBox('productions','Search production or ingredient')}<button class="btn primary eo" data-act="add-prod">+ Add production</button></div>`;
+  if(!Object.keys(S.prods).length) return h+(S.loaded?`<div class="empty"><h3>No productions yet</h3>Productions (sub-recipes) such as hummus or dough appear here.</div>`:loadingBox());
+  if(!list.length) return h+`<div class="empty"><h3>No production matches “${esc(q)}”</h3></div>`;
+  for(const p of list){
+    const pc=prodCost(p);
+    const merged=n=>`<td class="m" rowspan="${n}"><input type="number" inputmode="decimal" step="any" min="0" value="${p.yieldQty??''}" data-act="yq" data-id="${esc(p.id)}" aria-label="Batch yield"${D()}></td>
+      <td class="m" rowspan="${n}"><select data-act="yu" data-id="${esc(p.id)}" aria-label="Yield unit"${D()}>${UNITS.map(u=>`<option ${u===p.yieldUnit?'selected':''}>${u}</option>`).join('')}</select></td>
+      <td class="m" rowspan="${n}"><div class="big">${aed(pc.total)}</div><div class="small">AED</div></td>
+      <td class="m" rowspan="${n}">${pc.c==null?`<span class="flag">Add batch yield</span>`:`<div class="big">${aed(pc.c*(pc.dim==='p'?1:1000))}</div><div class="small">AED / ${perLabel(pc.dim,p.yieldUnit)}${pc.dim==='p'?'':' · '+aed(pc.c)+' / '+(isVol(p.yieldUnit)?'ml':'g')}</div>`}</td>`;
+    h+=`<section class="card"><div class="card-h"><input class="title" value="${esc(p.name)}" data-act="name" data-kind="prods" data-id="${esc(p.id)}" aria-label="Production name"${D()}>
+      ${pc.issues?`<span class="flag">${pc.issues} line${pc.issues>1?'s':''} to fix</span>`:''}<span class="sub">${usedBy(p.id)}</span>
+      <button class="btn small danger eo" data-act="del-doc" data-kind="prods" data-id="${esc(p.id)}">Delete</button></div>
+      <div class="tw"><table class="ct"><thead><tr><th>Ingredient</th><th>Quantity</th><th>Unit</th><th>Price</th><th>Packaging</th><th class="r">Unit cost</th><th class="r">Ingredient cost</th><th></th><th>Batch yield</th><th>Yield unit</th><th>Total batch cost</th><th>Cost per unit</th></tr></thead>
+      <tbody>${rowsHtml('prods',p,merged)}</tbody></table></div></section>`;
+  }
+  return h;
+}
+function dishCost(d){let t=0,iss=0; for(const r of d.rows||[]){const rc=rowCost(r); if(rc.err) iss++; else t+=rc.cost;} return {t,iss};}
+function renderMenu(){
+  const q=S.q.menu, cat=S.cat.menu;
+  const all=Object.values(S.dishes).sort((a,b)=>(a.order??0)-(b.order??0));
+  const cats=[...new Set(all.map(d=>d.category).filter(Boolean))];
+  const list=all.filter(d=>(cat==='ALL'||d.category===cat)&&match(q,d.name,d.category,...(d.rows||[]).map(r=>refName(r.ref))));
+  let h=pwNote()+`<div class="toolbar">${searchBox('menu','Search dish or ingredient')}<button class="btn primary eo" data-act="add-dish">+ Add dish</button></div>`;
+  if(cats.length) h+=`<div class="chips">${['ALL',...cats].map(c=>`<button class="chip" data-mcat="${esc(c)}" aria-pressed="${c===cat}">${c==='ALL'?'All':esc(c)}</button>`).join('')}</div>`;
+  const pcts=all.map(d=>{const c=dishCost(d).t,n=netPrice(d.price); return n&&c?c/n*100:null;}).filter(v=>v!=null);
+  if(pcts.length){const over=pcts.filter(v=>v>(Number(S.settings.targetPct)||30)).length; const avg=pcts.reduce((a,b)=>a+b,0)/pcts.length;
+    h+=`<div class="note">Average food cost <b class="num">${avg.toFixed(1)}%</b> across ${pcts.length} costed dishes · <b>${over}</b> above the ${S.settings.targetPct}% target.${S.settings.vat?' Selling prices are treated as including '+S.settings.vatRate+'% VAT.':''}</div>`;}
+  if(!all.length) return h+(S.loaded?`<div class="empty"><h3>No dishes yet</h3>Menu dishes with their selling price appear here.</div>`:loadingBox());
+  if(!list.length) return h+`<div class="empty"><h3>No dish matches</h3></div>`;
+  let lastCat=null;
+  for(const d of list){
+    if(cat==='ALL'&&d.category!==lastCat){h+=`<h3 class="cat-h">${esc(d.category||'Other')}</h3>`; lastCat=d.category;}
+    const dc=dishCost(d); const n=netPrice(d.price); const pct=n&&dc.t?dc.t/n*100:null;
+    const merged=k=>`<td class="m" rowspan="${k}"><div class="big">${aed(dc.t)}</div><div class="small">AED</div></td>
+      <td class="m" rowspan="${k}"><input class="price" type="number" inputmode="decimal" step="any" min="0" value="${d.price??''}" data-act="price" data-id="${esc(d.id)}" aria-label="Selling price"${D()}><div class="small">AED</div></td>
+      <td class="m" rowspan="${k}">${pct==null?'—':`<span class="pct ${pctClass(pct)}">${pct.toFixed(1)}%</span>`}</td>
+      <td class="m" rowspan="${k}">${dc.t?`<div class="big">${suggest(dc.t)}</div><div class="small">AED at ${S.settings.targetPct}%</div>`:'—'}</td>`;
+    h+=`<section class="card"><div class="card-h"><input class="title" value="${esc(d.name)}" data-act="name" data-kind="dishes" data-id="${esc(d.id)}" aria-label="Dish name"${D()}>
+      ${dc.iss?`<span class="flag">${dc.iss} line${dc.iss>1?'s':''} to fix</span>`:''}<span class="sub">${esc(d.category||'')}</span>
+      <button class="btn small danger eo" data-act="del-doc" data-kind="dishes" data-id="${esc(d.id)}">Delete</button></div>
+      <div class="tw"><table class="ct"><thead><tr><th>Ingredient</th><th>Quantity</th><th>Unit</th><th>Packaging</th><th class="r">Unit cost</th><th class="r">Ingredient cost</th><th></th><th>Total recipe cost</th><th>Selling price</th><th>Food cost %</th><th>Suggested price</th></tr></thead>
+      <tbody>${rowsHtml('dishes',d,merged)}</tbody></table></div></section>`;
+  }
+  return h;
+}
+function renderSettings(){
+  const conn=!!S.api, empty=conn&&S.loaded&&!Object.keys(S.items).length&&!Object.keys(S.prods).length;
+  return `<div class="settings">${pwNote()}
+  <div class="box"><h3>Food cost</h3>
+    <label class="fld">Target food cost %<input type="number" id="set-target" inputmode="decimal" min="5" max="90" step="0.5" value="${S.settings.targetPct}" data-act="set" data-k="targetPct"${D()}></label>
+    <p>The suggested price brings a dish to this food cost. Most restaurants aim for 28–35%.</p>
+    <label class="switch"><input type="checkbox" id="set-vat" ${S.settings.vat?'checked':''} data-act="set" data-k="vat"${D()}> Menu prices include VAT</label>
+    <label class="fld">VAT rate %<input type="number" id="set-vatrate" inputmode="decimal" min="0" max="30" step="0.5" value="${S.settings.vatRate}" data-act="set" data-k="vatRate"${D()}></label>
+    <p>Food cost % is worked out on the price without VAT; suggested prices include it.</p>
+    <div><button class="btn primary" data-act="export">Download Excel</button></div>
+  </div>
+  ${conn&&S.edit?`<div class="box"><h3>Edit password</h3>
+    <label class="fld">New password<input id="np1" type="password" autocomplete="new-password"></label>
+    <label class="fld">Repeat new password<input id="np2" type="password" autocomplete="new-password"></label>
+    <div><button class="btn primary" id="np-save">Change password</button></div></div>`:''}
+  ${empty&&S.edit?`<div class="box"><h3>Load starting data</h3><p>The Google Sheet is empty. Load the 420 supplier items, 48 productions and 176 menu dishes prepared by Claude.</p><div><button class="btn primary" id="seed-btn">Load starting data</button></div></div>`:''}
+  <div class="box"><h3>Google Sheet connection</h3>
+    <p>${conn?'Connected. Everyone with the link can view; editing needs the password.':'Not connected yet. Follow these steps once, on a computer, with the restaurant Google account:'}</p>
+    ${conn?'':`<ol><li>Create a Google Sheet called <b>Managish Costing</b>.</li><li>Open <b>Extensions → Apps Script</b>, delete what is there and paste the code below. Save.</li><li><b>Deploy → New deployment</b>, type <b>Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Deploy and allow access.</li><li>Copy the Web app URL (ends with <b>/exec</b>) and paste it below, or send it to Claude.</li></ol>`}
+    <label class="fld">Web app URL<input id="api-url" value="${esc(S.api)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
+    <div><button class="btn" id="api-save">Save connection</button></div>
+    <details><summary style="cursor:pointer;font-weight:600">Apps Script code</summary><textarea class="code" id="gs-code" readonly>Loading…</textarea><button class="btn small" id="gs-copy" type="button">Copy code</button></details>
+  </div></div>`;
+}
+function mountSettings(){
+  const code=$('#gs-code'); if(code) fetch('apps-script.gs',{cache:'no-store'}).then(r=>r.text()).then(t=>code.value=t).catch(()=>code.value='Could not load the code.');
+  const cp=$('#gs-copy'); if(cp) cp.onclick=async()=>{try{await navigator.clipboard.writeText(code.value);toast('Code copied');}catch(e){code.select();toast('Select all and copy');}};
+  const as=$('#api-save'); if(as) as.onclick=()=>{const u=$('#api-url').value.trim(); if(u&&!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){toast('The URL should start with https://script.google.com and end with /exec');return;}
+    S.api=u; if(u) ls.set('mc-api',u); else ls.del('mc-api'); S.version=null; S.loaded=false; toast(u?'Connecting…':'Disconnected'); pull(true).then(render); render();};
+  const np=$('#np-save'); if(np) np.onclick=async()=>{const a=$('#np1').value,b=$('#np2').value; if(a.length<4){toast('Use at least 4 characters');return;} if(a!==b){toast('The two passwords are different');return;}
+    try{const r=await api('POST',{password:S.pw,op:'password',newPassword:a}); if(r.ok){S.pw=a; ss.set('mc-pw',a); S.defaultPw=false; toast('Password changed'); render();} else toast('Could not change the password');}catch(e){toast('No connection. Try again.');}};
+  const sb=$('#seed-btn'); if(sb) sb.onclick=()=>seed(sb);
+}
+async function seed(btn){
+  btn.disabled=true; btn.textContent='Loading…';
+  try{
+    const d=await (await fetch('seed.json',{cache:'no-store'})).json();
+    const writes=[]; for(const coll of ['items','productions','dishes','settings']) for(const [id,doc] of Object.entries(d[coll]||{})) writes.push({collection:coll,id,doc});
+    for(let i=0;i<writes.length;i+=80){ btn.textContent=`Loading… ${Math.min(i+80,writes.length)} / ${writes.length}`; const r=await api('POST',{password:S.pw,op:'save',writes:writes.slice(i,i+80)}); if(!r.ok) throw new Error(r.error); }
+    toast('Starting data loaded'); S.version=null; await pull(true); render();
+  }catch(e){ btn.disabled=false; btn.textContent='Load starting data'; toast('Loading stopped. Tap again to continue.'); }
+}
+
+/* ---------- modals ---------- */
+function openModal(html,onMount){const L=$('#layer'); L.innerHTML=`<div class="scrim" data-act="scrim"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`; onMount&&onMount(L.firstElementChild); const f=L.querySelector('input:not([type=radio]),button.popt'); f&&setTimeout(()=>f.focus(),30);}
+function closeModal(){$('#layer').innerHTML=''; if(renderQueued){renderQueued=false; render();}}
+function confirmBox(title,text,ok='Delete'){return new Promise(res=>{openModal(`<div class="modal-h"><h2>${esc(title)}</h2></div><div class="modal-b"><p style="margin:0">${text}</p></div><div class="modal-f"><button class="btn" id="cf-no">Cancel</button><button class="btn danger" id="cf-yes">${esc(ok)}</button></div>`,el=>{el.querySelector('#cf-no').onclick=()=>{closeModal();res(false)};el.querySelector('#cf-yes').onclick=()=>{closeModal();res(true)};});});}
+let toastT; function toast(t){let el=$('.toast'); if(!el){el=document.createElement('div');el.className='toast';document.body.appendChild(el);} el.textContent=t; clearTimeout(toastT); toastT=setTimeout(()=>el.remove(),3200);}
+const today=()=>new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+
+function itemModal(id,afterSave){
+  const it=id?JSON.parse(JSON.stringify(S.items[id])):{name:'',category:'GROCERIES AND DRY GOODS',suppliers:{},current:null};
+  let rows=Object.entries(it.suppliers||{}).map(([n,s])=>({orig:n,name:n,price:s.price,qty:+(s.unit==='pcs'?s.qty:(s.qty>=1000?s.qty/1000:s.qty)).toFixed(4),unit:s.unit==='pcs'?'pcs':(s.qty>=1000?(isVol(s.unit)?'L':'kg'):(isVol(s.unit)?'ml':'g')),history:s.history,cur:n===it.current}));
+  if(!rows.length) rows.push({name:'',price:'',qty:1,unit:'kg',cur:true});
+  const sups=[...new Set(Object.values(S.items).flatMap(i=>Object.keys(i.suppliers||{})))].sort();
+  const cats=catsOf();
+  const draw=()=>`<div class="suprow"><span></span><span class="hd">Supplier</span><span class="hd">Price AED</span><span class="hd">Pack size</span><span class="hd">Unit</span><span></span></div>`+
+    rows.map((r,i)=>`<div class="suprow" data-i="${i}"><input type="radio" name="cur" ${r.cur?'checked':''} aria-label="Current supplier" data-f="cur"><input list="sup-list" value="${esc(r.name)}" placeholder="Supplier" data-f="name" class="w2" id="s-n-${i}"><input type="number" inputmode="decimal" step="any" min="0" value="${r.price}" placeholder="0.00" data-f="price" id="s-p-${i}"><input type="number" inputmode="decimal" step="any" min="0" value="${r.qty}" data-f="qty" id="s-q-${i}"><select data-f="unit" id="s-u-${i}">${UNITS.map(u=>`<option ${u===r.unit?'selected':''}>${u}</option>`).join('')}</select><button class="icon-btn" data-f="del" aria-label="Remove supplier price" type="button">✕</button>
+      ${r.history&&r.history.length?`<div class="hist">History: ${r.history.map(x=>`${esc(x.date)} → ${aed(Number(x.price))}`).join(' · ')}</div>`:''}</div>`).join('');
+  openModal(`<div class="modal-h"><h2>${id?'Edit item':'New item'}</h2><button class="icon-btn" data-x aria-label="Close">✕</button></div>
+   <div class="modal-b">
+    <label class="fld">Item name<input id="im-name" value="${esc(it.name)}" placeholder="e.g. Tahina Al Ameera 7KG"></label>
+    <div class="grid2"><label class="fld">Category<select id="im-cat">${[...new Set([...cats,it.category,'KITCHEN BASICS'])].filter(Boolean).sort().map(c=>`<option ${c===it.category?'selected':''} value="${esc(c)}">${esc(cap(c))}</option>`).join('')}</select></label>
+    <label class="fld">Weight of 1 piece (g, optional)<input id="im-pw" type="number" inputmode="decimal" min="0" step="any" value="${it.pieceWeight??''}" placeholder="for items bought by piece"></label></div>
+    <div class="fld">Supplier prices <span style="font-weight:400">★ = the supplier you buy from now. Pack size is what the price buys (e.g. 50 kg bag, 4 × 3.78 L = 15.12 L).</span></div>
+    <div id="sup-rows" style="display:flex;flex-direction:column;gap:8px">${draw()}</div>
+    <div><button class="btn small" id="add-sup" type="button">+ Add supplier price</button></div>
+    <datalist id="sup-list">${sups.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+   </div>
+   <div class="modal-f">${id?'<button class="btn danger" id="im-del" style="margin-right:auto">Delete item</button>':''}<button class="btn" data-x>Cancel</button><button class="btn primary" id="im-save">Save</button></div>`,el=>{
+    const box=el.querySelector('#sup-rows');
+    const sync=()=>box.querySelectorAll('.suprow[data-i]').forEach(rw=>{const r=rows[+rw.dataset.i]; rw.querySelectorAll('[data-f]').forEach(f=>{if(f.dataset.f==='cur') r.cur=f.checked; else if(f.dataset.f!=='del') r[f.dataset.f]=f.value;});});
+    box.addEventListener('click',e=>{const b=e.target.closest('[data-f="del"]'); if(!b) return; sync(); rows.splice(+b.closest('.suprow').dataset.i,1); if(rows.length&&!rows.some(r=>r.cur)) rows[0].cur=true; box.innerHTML=draw();});
+    el.querySelector('#add-sup').onclick=()=>{sync(); rows.push({name:'',price:'',qty:1,unit:'kg',cur:!rows.length}); box.innerHTML=draw();};
+    el.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+    const del=el.querySelector('#im-del'); if(del) del.onclick=async()=>{const u=usage(id); if(await confirmBox('Delete item?',`${esc(it.name)} will be removed${u?` and ${u} recipe${u>1?'s':''} using it will show “Deleted ingredient”`:''}. This can’t be undone.`)){delete S.items[id]; save('items',id,0); render(); toast('Item deleted');}};
+    el.querySelector('#im-save').onclick=()=>{
+      sync(); const name=el.querySelector('#im-name').value.trim(); if(!name){toast('Give the item a name.');return;}
+      const out={...it,name,category:el.querySelector('#im-cat').value,suppliers:{}}; const pw=el.querySelector('#im-pw').value; if(pw) out.pieceWeight=Number(pw); else delete out.pieceWeight;
+      out.current=null; delete out.check; delete out.id;
+      for(const r of rows){ const n=r.name.trim(); if(!n||r.price==='') continue;
+        const b=base(Number(r.qty)||1,r.unit); const price=Number(r.price);
+        const old=it.suppliers&&it.suppliers[r.orig||n];
+        let history=old&&old.history?[...old.history]:[];
+        if(old&&Number(old.price)!==price){ if(!history.length) history.push({date:'Before',price:Number(old.price)}); history.push({date:today(),price}); }
+        out.suppliers[n]={price,qty:b.dim==='p'?Number(r.qty):b.v,unit:b.dim==='p'?'pcs':(isVol(r.unit)?'ml':'g'),...(history.length?{history:history.slice(-8)}:{})};
+        if(r.cur) out.current=n; }
+      if(!out.current&&Object.keys(out.suppliers).length) out.current=Object.keys(out.suppliers)[0];
+      const nid=id||uid('n-'); S.items[nid]={...out,id:nid}; save('items',nid,0); closeModal(); render(); toast(id?'Item saved':'Item added'); afterSave&&afterSave(nid);
+    };
+  });
+}
+function pickerModal(kind,docId,rowId){
+  const draw=q=>{
+    const prods=Object.values(S.prods).filter(p=>p.id!==docId&&match(q,p.name)).sort((a,b)=>a.name.localeCompare(b.name));
+    const items=Object.values(S.items).filter(i=>match(q,i.name,i.category)).sort((a,b)=>a.name.localeCompare(b.name));
+    const opt=(id,n,extra)=>`<button class="popt" data-pick="${esc(id)}"><span>${esc(n)}</span><small>${extra}</small></button>`;
+    let h=''; memo={};
+    if(prods.length) h+=`<div class="plabel">Productions</div>`+prods.slice(0,60).map(p=>{const c=prodCost(p);return opt(p.id,p.name,c.c==null?'no yield':aed(c.c*(c.dim==='p'?1:1000))+' / '+perLabel(c.dim,p.yieldUnit));}).join('');
+    if(items.length) h+=`<div class="plabel">Supplier items</div>`+items.slice(0,120).map(i=>{const c=itemCost(i);return opt(i.id,i.name,c.err?'no price':aed(c.c*(c.dim==='p'?1:1000))+' / '+perLabel(c.dim,c.unit));}).join('');
+    memo=null;
+    if(q.trim()) h+=`<button class="popt" data-new="1"><span>+ Add “${esc(q.trim())}” as a new item</span><small></small></button>`;
+    return h||'<p style="color:var(--ink-soft)">Type to search.</p>';
+  };
+  openModal(`<div class="modal-h"><h2>Choose ingredient</h2><button class="icon-btn" data-x aria-label="Close">✕</button></div>
+    <div class="modal-b"><label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="pk-q" placeholder="Search productions and items" aria-label="Search ingredients"></label><div class="plist" id="pk-l">${draw('')}</div></div>`,el=>{
+    const q=el.querySelector('#pk-q'), l=el.querySelector('#pk-l');
+    q.oninput=()=>l.innerHTML=draw(q.value);
+    el.querySelector('[data-x]').onclick=closeModal;
+    const setRef=ref=>{const r=(S[kind][docId].rows||[]).find(x=>x.id===rowId); if(r){r.ref=ref; if(S.prods[ref]) r.unit=S.prods[ref].yieldUnit==='pcs'?'pcs':(isVol(S.prods[ref].yieldUnit)?'ml':'g'); save(kind,docId,0);} closeModal(); render();};
+    l.addEventListener('click',e=>{const b=e.target.closest('[data-pick]'); if(b) return setRef(b.dataset.pick);
+      if(e.target.closest('[data-new]')){const name=q.value.trim(); closeModal(); itemModal(null,nid=>setRef(nid)); setTimeout(()=>{const n=$('#im-name'); if(n) n.value=name;},40);}});
+  });
+}
+function newDocModal(kind){
+  const isP=kind==='prods';
+  const cats=[...new Set(Object.values(S.dishes).map(d=>d.category).filter(Boolean))];
+  openModal(`<div class="modal-h"><h2>${isP?'New production':'New dish'}</h2><button class="icon-btn" data-x aria-label="Close">✕</button></div>
+   <div class="modal-b"><label class="fld">${isP?'Production name':'Dish name'}<input id="nd-name" placeholder="${isP?'e.g. Garlic Sauce':'e.g. Chicken Shawarma Plate'}"></label>
+   ${isP?`<div class="grid2"><label class="fld">Batch yield<input id="nd-y" type="number" inputmode="decimal" step="any" min="0" placeholder="e.g. 3.2"></label><label class="fld">Yield unit<select id="nd-u">${UNITS.map(u=>`<option ${u==='kg'?'selected':''}>${u}</option>`).join('')}</select></label></div>`
+   :`<div class="grid2"><label class="fld">Menu category<input id="nd-c" list="cat-list" placeholder="e.g. Shawarma"><datalist id="cat-list">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></label><label class="fld">Selling price (AED)<input id="nd-p" type="number" inputmode="decimal" step="any" min="0"></label></div>`}</div>
+   <div class="modal-f"><button class="btn" data-x>Cancel</button><button class="btn primary" id="nd-ok">Create</button></div>`,el=>{
+    el.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+    el.querySelector('#nd-ok').onclick=()=>{const name=el.querySelector('#nd-name').value.trim(); if(!name){toast('Give it a name.');return;}
+      const id=uid(isP?'p-':'d-'); const order=Math.max(0,...Object.values(S[kind]).map(x=>x.order||0))+1;
+      const doc=isP?{id,name,yieldQty:el.querySelector('#nd-y').value===''?null:Number(el.querySelector('#nd-y').value),yieldUnit:el.querySelector('#nd-u').value,rows:[{id:uid('r'),ref:null,qty:null,unit:'g'}],order}
+        :{id,name,category:el.querySelector('#nd-c').value.trim(),price:el.querySelector('#nd-p').value===''?null:Number(el.querySelector('#nd-p').value),rows:[{id:uid('r'),ref:null,qty:null,unit:'g'}],order};
+      S[kind][id]=doc; save(kind,id,0); closeModal(); S.q[isP?'productions':'menu']=''; if(!isP) S.cat.menu='ALL'; render();
+      setTimeout(()=>{const c=document.querySelector(`input.title[data-id="${id}"]`); c&&c.scrollIntoView({block:'center'});},60);};
+  });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',async e=>{
+  const t=e.target.closest('[data-act],[data-tab],[data-cat],[data-mcat]'); if(!t||t.disabled) return;
+  if(t.dataset.tab){S.tab=t.dataset.tab; ls.set('mc-tab',S.tab); window.scrollTo(0,0); render(); return;}
+  if(t.dataset.cat){S.cat.items=t.dataset.cat; render(); return;}
+  if(t.dataset.mcat){S.cat.menu=t.dataset.mcat; render(); return;}
+  const a=t.dataset.act, k=t.dataset.kind, id=t.dataset.id;
+  if(a==='scrim'){ if(e.target===t) closeModal(); return; }
+  if(a==='export') return exportXlsx();
+  if(!S.edit) return;
+  if(a==='add-item') return itemModal(null);
+  if(a==='edit-item') return itemModal(id);
+  if(a==='add-prod') return newDocModal('prods');
+  if(a==='add-dish') return newDocModal('dishes');
+  if(a==='pick') return pickerModal(k,id,t.dataset.row);
+  if(a==='add-row'){const d=S[k][id]; d.rows=d.rows||[]; const r={id:uid('r'),ref:null,qty:null,unit:'g'}; d.rows.push(r); save(k,id); render(); pickerModal(k,id,r.id); return;}
+  if(a==='del-row'){const d=S[k][id]; d.rows=d.rows.filter(r=>r.id!==t.dataset.row); save(k,id,0); render(); return;}
+  if(a==='del-doc'){const d=S[k][id]; const u=k==='prods'?usage(id):0;
+    if(await confirmBox(k==='prods'?'Delete production?':'Delete dish?',`${esc(d.name)} will be removed${u?`, and ${u} recipe${u>1?'s':''} using it will show “Deleted ingredient”`:''}. This can’t be undone.`)){delete S[k][id]; save(k,id,0); render(); toast('Deleted');} return;}
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.q!==undefined){S.q[t.dataset.q]=t.value; const pos=t.selectionStart; render(); const n=$('#q-'+t.dataset.q); if(n){n.focus(); try{n.setSelectionRange(pos,pos)}catch(_){}} return;}
+  const a=t.dataset.act, k=t.dataset.kind, id=t.dataset.id; if(!a||!S.edit) return;
+  const num=v=>v===''?null:Number(v);
+  if(a==='qty'){const r=S[k][id].rows.find(x=>x.id===t.dataset.row); r.qty=num(t.value); save(k,id); renderQueued=true;}
+  else if(a==='name'){S[k][id].name=t.value; save(k,id,900);}
+  else if(a==='yq'){S.prods[id].yieldQty=num(t.value); save('prods',id); renderQueued=true;}
+  else if(a==='price'){S.dishes[id].price=num(t.value); save('dishes',id); renderQueued=true;}
+});
+document.addEventListener('change',e=>{
+  const t=e.target, a=t.dataset.act, k=t.dataset.kind, id=t.dataset.id; if(!a||!S.edit) return;
+  if(a==='unit'){S[k][id].rows.find(x=>x.id===t.dataset.row).unit=t.value; save(k,id,0); render();}
+  else if(a==='yu'){S.prods[id].yieldUnit=t.value; save('prods',id,0); render();}
+  else if(a==='cur'){S.items[id].current=t.value; save('items',id,0); render(); toast('Price updated everywhere this item is used');}
+  else if(a==='set'){S.settings[t.dataset.k]=t.type==='checkbox'?t.checked:Number(t.value); saveSettings();}
+  else if(['qty','yq','price'].includes(a)) render();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#layer').firstChild) closeModal(); if(e.key==='Enter'&&e.target.matches('.ct input')) e.target.blur();});
+
+/* ---------- export ---------- */
+function exportXlsx(){
+  if(!window.XLSX){toast('The Excel tool is still loading. Try again in a moment.');return;}
+  memo={};
+  const it=[['Category','Item','Supplier','Current','Price AED','Pack size','Cost per kg / L / pc']];
+  Object.values(S.items).sort((a,b)=>(a.category+a.name).localeCompare(b.category+b.name)).forEach(i=>Object.entries(i.suppliers||{}).forEach(([n,s])=>{const b=base(s.qty,s.unit); it.push([i.category,i.name,n,n===i.current?'Yes':'',Number(s.price),fmtQty(s.qty,s.unit),b&&b.v?+(s.price/b.v*(b.dim==='p'?1:1000)).toFixed(3):''])}));
+  const pr=[['Production','Ingredient','Quantity','Unit','Price AED','Packaging','Unit cost (per kg/L/pc)','Ingredient cost','Batch yield','Yield unit','Total batch cost','Cost per kg/L/pc']];
+  Object.values(S.prods).sort((a,b)=>(a.order??0)-(b.order??0)).forEach(p=>{const pc=prodCost(p); (p.rows||[]).forEach((r,i)=>{const rc=rowCost(r); const ic=S.items[r.ref]?itemCost(S.items[r.ref]):null;
+    pr.push([i?'':p.name,refName(r.ref),r.qty,r.unit,ic&&ic.sup?Number(ic.sup.price):(S.prods[r.ref]?'Production':''),r.ref?packCell(r):'',rc.err?'':+(rc.unitCost*(rc.dim==='p'?1:1000)).toFixed(3),rc.err?ERR[rc.err]:+rc.cost.toFixed(3),i?'':p.yieldQty,i?'':p.yieldUnit,i?'':+pc.total.toFixed(2),i?'':(pc.c==null?'':+(pc.c*(pc.dim==='p'?1:1000)).toFixed(3))]);}); pr.push([]);});
+  const mn=[['Category','Dish','Ingredient','Quantity','Unit','Unit cost (per kg/L/pc)','Ingredient cost','Total recipe cost','Selling price','Food cost %','Suggested price']];
+  Object.values(S.dishes).sort((a,b)=>(a.order??0)-(b.order??0)).forEach(d=>{const dc=dishCost(d); const n=netPrice(d.price); const rows=(d.rows&&d.rows.length)?d.rows:[{}]; rows.forEach((r,i)=>{const rc=r.ref?rowCost(r):{err:'ing'};
+    mn.push([i?'':d.category,i?'':d.name,r.ref?refName(r.ref):'',r.qty??'',r.unit??'',rc.err?'':+(rc.unitCost*(rc.dim==='p'?1:1000)).toFixed(3),rc.err?(r.ref?ERR[rc.err]:''):+rc.cost.toFixed(3),i?'':+dc.t.toFixed(2),i?'':d.price,i?'':(n&&dc.t?+(dc.t/n*100).toFixed(1):''),i?'':(dc.t?suggest(dc.t):'')]);}); mn.push([]);});
+  memo=null;
+  const wb=XLSX.utils.book_new();
+  [['Items',it],['Productions',pr],['Menu Costing',mn]].forEach(([n,a])=>{const ws=XLSX.utils.aoa_to_sheet(a); ws['!cols']=a[0].map((_,i)=>({wch:i<3?28:14})); XLSX.utils.book_append_sheet(wb,ws,n);});
+  XLSX.writeFile(wb,`Managish_Costing_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ---------- remote pause / stop (control.json on GitHub) ---------- */
+async function readControl(){
+  try{const r=await fetch('control.json?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return 'on'; const j=await r.json(); return String(j.status||'on').trim().toLowerCase();}catch(e){return null;}
+}
+let HALTED=false;
+async function applyControl(){
+  const st=await readControl(); if(st===null) return;
+  if(st==='pause'||st==='stop'){
+    HALTED=true; $('#halt').hidden=false; $('#layer').innerHTML='';
+    $('#haltTitle').textContent=st==='pause'?'Costing paused':'Costing stopped';
+    $('#haltText').textContent=st==='pause'?'The costing system is paused for now. Please contact Lydia.':'The costing system has been turned off. Please contact Lydia.';
+    if(st==='stop'){ S.pw=''; ss.del('mc-pw'); }
+  } else if(HALTED){ location.reload(); }
+}
+setInterval(applyControl,120000);
+
+/* ---------- start ---------- */
+async function boot(){
+  setEdit(!!S.pw);
+  await applyControl(); if(HALTED) return;
+  try{const c=await (await fetch('config.json?t='+Date.now(),{cache:'no-store'})).json(); S.api=ls.get('mc-api')||c.apiUrl||'';}catch(e){S.api=ls.get('mc-api')||'';}
+  if(!S.api){S.loaded=true; setStatus('Not connected','err'); if(S.tab!=='settings'){} render(); return;}
+  render(); await pull(true);
+}
+boot();
+})();
+</script>
+</body>
+</html>
