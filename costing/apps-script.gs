@@ -1,6 +1,8 @@
 /* Managish Costing — Google Sheet connector
-   1. Create a Google Sheet called "Managish Costing" (restaurant Google account).
-   2. Extensions > Apps Script. Delete what is there and paste ALL of this code. Save.
+   1. Go to script.google.com (restaurant Google account) > New project.
+      (Or from a Google Sheet: Extensions > Apps Script.)
+   2. Delete what is there and paste ALL of this code. Save.
+      The Google Sheet "Managish Costing" is created automatically in Drive.
    3. Deploy > New deployment > type "Web app".
       Execute as: Me.   Who has access: Anyone.   Deploy, allow access.
    4. Copy the Web app URL (ends with /exec) and send it to Claude, or paste it in the app's Settings.
@@ -8,8 +10,26 @@
 
 var SHEET = 'Data';
 
+function book_() {
+  var a = null;
+  try { a = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
+  if (a) return a;
+  var p = props_(), id = p.getProperty('SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    id = p.getProperty('SHEET_ID');
+    if (id) return SpreadsheetApp.openById(id);
+    var s = SpreadsheetApp.create('Managish Costing');
+    p.setProperty('SHEET_ID', s.getId());
+    return s;
+  } finally { lock.releaseLock(); }
+}
+/* Optional: run once from the editor to create the Sheet and give permissions */
+function setup() { sheet_(); MailApp.getRemainingDailyQuota(); Logger.log(book_().getUrl()); }
+
 function sheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = book_();
   var sh = ss.getSheetByName(SHEET);
   if (!sh) {
     sh = ss.insertSheet(SHEET);
