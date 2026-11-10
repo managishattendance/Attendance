@@ -181,7 +181,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const uid=p=>p+Math.random().toString(36).slice(2,9);
 const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
 const ss={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}},del:k=>{try{sessionStorage.removeItem(k)}catch(e){}}};
-const S={items:{},prods:{},dishes:{},settings:{targetPct:30,vat:true,vatRate:5},loaded:false,version:null,defaultPw:false,
+const S={items:{},prods:{},dishes:{},settings:{targetPct:30,vat:true,vatRate:5,emails:'rmanagish@gmail.com'},loaded:false,version:null,defaultPw:false,
   tab:ls.get('mc-tab')||'productions',q:{items:'',productions:'',menu:''},cat:{items:'ALL',menu:'ALL'},
   api:'',pw:ss.get('mc-pw')||'',edit:false};
 S.edit=!!S.pw;
@@ -424,7 +424,7 @@ function renderMenu(){
   const all=Object.values(S.dishes).sort((a,b)=>(a.order??0)-(b.order??0));
   const cats=[...new Set(all.map(d=>d.category).filter(Boolean))];
   const list=all.filter(d=>(cat==='ALL'||d.category===cat)&&match(q,d.name,d.category,...(d.rows||[]).map(r=>refName(r.ref))));
-  let h=pwNote()+`<div class="toolbar">${searchBox('menu','Search dish or ingredient')}<button class="btn primary eo" data-act="add-dish">+ Add dish</button></div>`;
+  let h=pwNote()+`<div class="toolbar">${searchBox('menu','Search dish or ingredient')}<button class="btn eo" data-act="email">📧 Email report</button><button class="btn primary eo" data-act="add-dish">+ Add dish</button></div>`;
   if(cats.length) h+=`<div class="chips">${['ALL',...cats].map(c=>`<button class="chip" data-mcat="${esc(c)}" aria-pressed="${c===cat}">${c==='ALL'?'All':esc(c)}</button>`).join('')}</div>`;
   const pcts=all.map(d=>{const c=dishCost(d).t,n=netPrice(d.price); return n&&c?c/n*100:null;}).filter(v=>v!=null);
   if(pcts.length){const over=pcts.filter(v=>v>(Number(S.settings.targetPct)||30)).length; const avg=pcts.reduce((a,b)=>a+b,0)/pcts.length;
@@ -457,6 +457,11 @@ function renderSettings(){
     <label class="fld">VAT rate %<input type="number" id="set-vatrate" inputmode="decimal" min="0" max="30" step="0.5" value="${S.settings.vatRate}" data-act="set" data-k="vatRate"${D()}></label>
     <p>Food cost % is worked out on the price without VAT; suggested prices include it.</p>
     <div><button class="btn primary" data-act="export">Download Excel</button></div>
+  </div>
+  <div class="box"><h3>Email report</h3>
+    <label class="fld">Send reports to (separate several emails with a comma)<input id="set-emails" value="${esc(S.settings.emails||'')}" data-act="set" data-k="emails"${D()}></label>
+    <p>The report is a PDF with every dish costed so far, its food cost % and suggested price, plus the cost of each production. Send it any time, even before the whole menu is done.</p>
+    <div class="eo"><button class="btn" data-act="email">📧 Email report now</button></div>
   </div>
   ${conn&&S.edit?`<div class="box"><h3>Edit password</h3>
     <label class="fld">New password<input id="np1" type="password" autocomplete="new-password"></label>
@@ -589,6 +594,7 @@ document.addEventListener('click',async e=>{
   if(a==='scrim'){ if(e.target===t) closeModal(); return; }
   if(a==='export') return exportXlsx();
   if(!S.edit) return;
+  if(a==='email') return emailModal();
   if(a==='add-item') return itemModal(null);
   if(a==='edit-item') return itemModal(id);
   if(a==='add-prod') return newDocModal('prods');
@@ -614,7 +620,7 @@ document.addEventListener('change',e=>{
   if(a==='unit'){S[k][id].rows.find(x=>x.id===t.dataset.row).unit=t.value; save(k,id,0); render();}
   else if(a==='yu'){S.prods[id].yieldUnit=t.value; save('prods',id,0); render();}
   else if(a==='cur'){S.items[id].current=t.value; save('items',id,0); render(); toast('Price updated everywhere this item is used');}
-  else if(a==='set'){S.settings[t.dataset.k]=t.type==='checkbox'?t.checked:Number(t.value); saveSettings();}
+  else if(a==='set'){S.settings[t.dataset.k]=t.type==='checkbox'?t.checked:(t.type==='number'?Number(t.value):t.value.trim()); saveSettings();}
   else if(['qty','yq','price'].includes(a)) render();
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#layer').firstChild) closeModal(); if(e.key==='Enter'&&e.target.matches('.ct input')) e.target.blur();});
@@ -635,6 +641,50 @@ function exportXlsx(){
   const wb=XLSX.utils.book_new();
   [['Items',it],['Productions',pr],['Menu Costing',mn]].forEach(([n,a])=>{const ws=XLSX.utils.aoa_to_sheet(a); ws['!cols']=a[0].map((_,i)=>({wch:i<3?28:14})); XLSX.utils.book_append_sheet(wb,ws,n);});
   XLSX.writeFile(wb,`Managish_Costing_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ---------- email PDF report ---------- */
+function reportHtml(note){
+  memo={};
+  const dishes=Object.values(S.dishes).sort((a,b)=>(a.order??0)-(b.order??0));
+  const done=dishes.filter(d=>(d.rows||[]).some(r=>r.ref));
+  const t=Number(S.settings.targetPct)||30;
+  const rowsBy={}; let pSum=0,pN=0,over=0;
+  done.forEach(d=>{const dc=dishCost(d), n=netPrice(d.price), pct=n&&dc.t?dc.t/n*100:null; if(pct!=null){pSum+=pct;pN++; if(pct>t) over++;}
+    (rowsBy[d.category||'Other']=rowsBy[d.category||'Other']||[]).push({d,dc,pct});});
+  const left={}; dishes.filter(d=>!(d.rows||[]).some(r=>r.ref)).forEach(d=>left[d.category||'Other']=(left[d.category||'Other']||0)+1);
+  const col=p=>p==null?'#666':(p<=t?'#2E7D3E':(p<=t+5?'#A86A00':'#B23A2A'));
+  const dateStr=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  let h=`<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11px;color:#1F2A21}h1{font-size:20px;color:#1E3B26;margin:0}h2{font-size:14px;color:#2F6B3C;margin:18px 0 6px;border-bottom:1px solid #DCE3D5;padding-bottom:3px}table{width:100%;border-collapse:collapse}th{background:#EEF2EA;text-align:left;font-size:10px;padding:4px}td{padding:4px;border-bottom:1px solid #E5EAE0}.r{text-align:right}.sum td{border:0;padding:2px 8px 2px 0}</style></head><body>
+  <h1>Managish · Costing update</h1><div style="color:#5B6A5D">${esc(dateStr)} · Target food cost ${t}%${S.settings.vat?' · menu prices include '+S.settings.vatRate+'% VAT':''}</div>
+  ${note?`<p style="background:#F6E7C8;padding:8px;border-radius:4px">${esc(note)}</p>`:''}
+  <table class="sum" style="margin-top:10px;width:auto"><tr><td><b>Dishes costed</b></td><td>${done.length} of ${dishes.length}</td></tr><tr><td><b>Average food cost</b></td><td>${pN?(pSum/pN).toFixed(1)+'%':'—'}</td></tr><tr><td><b>Above target</b></td><td>${over}</td></tr><tr><td><b>Productions</b></td><td>${Object.keys(S.prods).length}</td></tr></table>`;
+  if(done.length){ h+=`<h2>Menu costing</h2><table><tr><th>Dish</th><th class="r">Recipe cost</th><th class="r">Selling price</th><th class="r">Food cost %</th><th class="r">Suggested price</th><th>Note</th></tr>`;
+    for(const [c,list] of Object.entries(rowsBy)){ h+=`<tr><td colspan="6" style="background:#F4F6F1;font-weight:bold">${esc(c)}</td></tr>`;
+      list.forEach(({d,dc,pct})=>{h+=`<tr><td>${esc(d.name)}</td><td class="r">${aed(dc.t)}</td><td class="r">${d.price??'—'}</td><td class="r" style="color:${col(pct)};font-weight:bold">${pct==null?'—':pct.toFixed(1)+'%'}</td><td class="r">${dc.t?suggest(dc.t):'—'}</td><td>${dc.iss?dc.iss+' line(s) missing a price or quantity':''}</td></tr>`;}); }
+    h+=`</table>`; }
+  if(Object.keys(left).length) h+=`<h2>Still to cost</h2><p>${Object.entries(left).map(([c,n])=>`${esc(c)}: ${n}`).join(' · ')}</p>`;
+  h+=`<h2>Productions (sub-recipes)</h2><table><tr><th>Production</th><th class="r">Batch cost (AED)</th><th class="r">Batch yield</th><th class="r">Cost per kg / L / pc</th><th>Note</th></tr>`;
+  Object.values(S.prods).sort((a,b)=>(a.order??0)-(b.order??0)).forEach(p=>{const pc=prodCost(p); h+=`<tr><td>${esc(p.name)}</td><td class="r">${aed(pc.total)}</td><td class="r">${p.yieldQty?fmtQty(p.yieldQty,p.yieldUnit):'—'}</td><td class="r">${pc.c==null?'—':aed(pc.c*(pc.dim==='p'?1:1000))+' / '+perLabel(pc.dim,p.yieldUnit)}</td><td>${pc.issues?pc.issues+' line(s) to fix':''}</td></tr>`;});
+  h+=`</table></body></html>`; memo=null;
+  return {html:h,done:done.length,total:dishes.length,dateStr};
+}
+function emailModal(){
+  openModal(`<div class="modal-h"><h2>Email costing report</h2><button class="icon-btn" data-x aria-label="Close">✕</button></div>
+   <div class="modal-b"><label class="fld">Send to<input id="em-to" value="${esc(S.settings.emails||'')}" placeholder="name@email.com, other@email.com"></label>
+   <label class="fld">Message (optional)<input id="em-note" placeholder="e.g. Breakfast and Man'aeesh done, pizza next week"></label>
+   <p style="margin:0;color:var(--ink-soft);font-size:13px">A PDF with all dishes costed so far and every production is attached. Dishes not costed yet are listed as “still to cost”.</p></div>
+   <div class="modal-f"><button class="btn" data-x>Cancel</button><button class="btn primary" id="em-send">Send email</button></div>`,el=>{
+    el.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+    el.querySelector('#em-send').onclick=async()=>{const to=el.querySelector('#em-to').value.trim(); if(!/\S+@\S+\.\S+/.test(to)){toast('Enter at least one email address');return;}
+      const btn=el.querySelector('#em-send'); btn.disabled=true; btn.textContent='Sending…';
+      const note=el.querySelector('#em-note').value.trim(); const r=reportHtml(note);
+      try{const res=await api('POST',{password:S.pw,op:'email',to,subject:`Managish costing update – ${r.dateStr} (${r.done}/${r.total} dishes)`,
+        body:`<p>Hello,</p><p>Please find attached the latest costing update: <b>${r.done} of ${r.total}</b> menu dishes costed so far.</p>${note?`<p>${esc(note)}</p>`:''}<p>Managish Costing</p>`,
+        html:r.html,filename:`Managish_Costing_${new Date().toISOString().slice(0,10)}.pdf`});
+        if(res.ok){closeModal(); toast('Report sent to '+to);} else throw new Error(res.error);}
+      catch(e){btn.disabled=false; btn.textContent='Send email'; toast('The email could not be sent. Check the connection and try again.');}};
+  });
 }
 
 /* ---------- remote pause / stop (control.json on GitHub) ---------- */

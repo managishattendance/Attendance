@@ -54,6 +54,17 @@ function doPost(e) {
       props_().setProperty('PASSWORD', String(b.newPassword));
       return out_({ ok: true });
     }
+    if (b.op === 'email') {
+      var pdf = Utilities.newBlob(String(b.html), MimeType.HTML, 'report.html').getAs(MimeType.PDF).setName(String(b.filename || 'Managish_Costing.pdf'));
+      MailApp.sendEmail({
+        to: String(b.to),
+        subject: String(b.subject || 'Managish costing update'),
+        htmlBody: String(b.body || 'Costing update attached.'),
+        attachments: [pdf],
+        name: 'Managish Costing'
+      });
+      return out_({ ok: true });
+    }
     var sh = sheet_(), last = sh.getLastRow();
     var keys = last > 1 ? sh.getRange(2, 1, last - 1, 2).getValues() : [];
     var index = {};
