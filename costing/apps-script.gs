@@ -16,15 +16,15 @@ function book_() {
   if (a) return a;
   var p = props_(), id = p.getProperty('SHEET_ID');
   if (id) return SpreadsheetApp.openById(id);
-  var lock = LockService.getScriptLock(), mine = !lock.hasLock();
-  if (mine) lock.waitLock(25000);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
   try {
     id = p.getProperty('SHEET_ID');
     if (id) return SpreadsheetApp.openById(id);
     var s = SpreadsheetApp.create('Managish Costing');
     p.setProperty('SHEET_ID', s.getId());
     return s;
-  } finally { if (mine) lock.releaseLock(); }
+  } finally { lock.releaseLock(); }
 }
 /* Optional: run once from the editor to create the Sheet and give permissions */
 function setup() { sheet_(); MailApp.getRemainingDailyQuota(); Logger.log(book_().getUrl()); }
@@ -68,6 +68,7 @@ function doPost(e) {
   var pw = props_().getProperty('PASSWORD') || '0000';
   if (String(b.password) !== pw) return out_({ ok: false, error: 'password' });
   if (b.op === 'check') return out_({ ok: true });
+  var sh = sheet_();
   var lock = LockService.getScriptLock();
   lock.waitLock(25000);
   try {
@@ -86,7 +87,7 @@ function doPost(e) {
       });
       return out_({ ok: true });
     }
-    var sh = sheet_(), last = sh.getLastRow();
+    var last = sh.getLastRow();
     var keys = last > 1 ? sh.getRange(2, 1, last - 1, 2).getValues() : [];
     var index = {};
     for (var i = 0; i < keys.length; i++) index[keys[i][0] + '/' + keys[i][1]] = i + 2;
